@@ -3,3 +3,5 @@ flask-cors
 pypdf
 pdf2docx
 werkzeug
+gunicorn
+upstash-redis
