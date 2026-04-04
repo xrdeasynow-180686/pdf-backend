@@ -13,6 +13,10 @@ OUTPUT_FOLDER = "output"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
+@app.route("/")
+def home():
+    return {"message": "PDF Merge API is running"}
+
 @app.route("/merge", methods=["POST"])
 def merge_pdfs():
     files = request.files.getlist("files")
@@ -31,7 +35,11 @@ def merge_pdfs():
         saved_files.append(path)
         merger.append(path)
 
-    output_file = os.path.join(OUTPUT_FOLDER, f"merged_{uuid.uuid4()}.pdf")
+    output_file = os.path.join(
+        OUTPUT_FOLDER,
+        f"merged_{uuid.uuid4()}.pdf"
+    )
+
     merger.write(output_file)
     merger.close()
 
@@ -39,8 +47,4 @@ def merge_pdfs():
 
 
 if __name__ == "__main__":
-<<<<<<< HEAD
     app.run(host="0.0.0.0", port=5000)
-=======
-    app.run(host="0.0.0.0", port=5000)
->>>>>>> 2db8a16e94967811f6e60c8ec1fdbc2ff0401bcc
