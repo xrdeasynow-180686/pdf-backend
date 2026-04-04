@@ -39,4 +39,8 @@ def merge_pdfs():
 
 
 if __name__ == "__main__":
+<<<<<<< HEAD
     app.run(host="0.0.0.0", port=5000)
+=======
+    app.run(host="0.0.0.0", port=5000)
+>>>>>>> 2db8a16e94967811f6e60c8ec1fdbc2ff0401bcc
