@@ -4,7 +4,6 @@ pypdf
 pdf2docx
 werkzeug
 pillow
-python-docx
 reportlab
 gunicorn
 upstash-redis
