@@ -1,93 +1,91 @@
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 from pypdf import PdfReader, PdfWriter
-import os, uuid, zipfile
+import os
+import uuid
+import zipfile
 
 app = Flask(__name__)
 CORS(app)
 
-UPLOAD = "uploads"
-OUTPUT = "output"
+UPLOAD_FOLDER = "uploads"
+OUTPUT_FOLDER = "output"
 
-os.makedirs(UPLOAD, exist_ok=True)
-os.makedirs(OUTPUT, exist_ok=True)
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
 @app.route("/")
 def home():
-    return {"status": "running"}
+    return {"message": "PDF API Running"}
 
 
 # ================= MERGE =================
 @app.route("/merge", methods=["POST"])
-def merge():
+def merge_pdfs():
     files = request.files.getlist("files")
 
     writer = PdfWriter()
 
-    for f in files:
-        path = os.path.join(UPLOAD, f"{uuid.uuid4()}.pdf")
-        f.save(path)
+    for file in files:
+        path = os.path.join(UPLOAD_FOLDER, str(uuid.uuid4()) + ".pdf")
+        file.save(path)
 
         reader = PdfReader(path)
         for page in reader.pages:
             writer.add_page(page)
 
-    out = os.path.join(OUTPUT, f"merge_{uuid.uuid4()}.pdf")
+    output_path = os.path.join(OUTPUT_FOLDER, f"merged_{uuid.uuid4()}.pdf")
 
-    with open(out, "wb") as f:
+    with open(output_path, "wb") as f:
         writer.write(f)
 
-    return send_file(out, as_attachment=True)
+    return send_file(output_path, as_attachment=True)
 
 
-# ================= SPLIT =================
+# ================= SPLIT (FIXED) =================
 @app.route("/split", methods=["POST"])
-def split():
+def split_pdf():
     file = request.files["file"]
 
-    path = os.path.join(UPLOAD, f"{uuid.uuid4()}.pdf")
-    file.save(path)
+    input_path = os.path.join(UPLOAD_FOLDER, str(uuid.uuid4()) + ".pdf")
+    file.save(input_path)
 
-    reader = PdfReader(path)
+    reader = PdfReader(input_path)
 
-    zip_path = os.path.join(OUTPUT, f"split_{uuid.uuid4()}.zip")
+    page_paths = []
 
-    with zipfile.ZipFile(zip_path, "w") as zipf:
-        for i, page in enumerate(reader.pages):
-            writer = PdfWriter()
-            writer.add_page(page)
-
-            temp = os.path.join(OUTPUT, f"{i}.pdf")
-            with open(temp, "wb") as f:
-                writer.write(f)
-
-            zipf.write(temp, f"page_{i}.pdf")
-
-    return send_file(zip_path, as_attachment=True)
-
-
-# ================= EDIT (TEXT + HIGHLIGHT DATA) =================
-@app.route("/edit", methods=["POST"])
-def edit():
-    file = request.files["file"]
-    highlight = request.form.get("highlight", "")
-
-    path = os.path.join(UPLOAD, f"{uuid.uuid4()}.pdf")
-    file.save(path)
-
-    reader = PdfReader(path)
-    writer = PdfWriter()
-
-    for page in reader.pages:
+    for i, page in enumerate(reader.pages):
+        writer = PdfWriter()
         writer.add_page(page)
 
-    out = os.path.join(OUTPUT, f"edit_{uuid.uuid4()}.pdf")
+        page_filename = f"page_{i}_{uuid.uuid4()}.pdf"
+        page_path = os.path.join(OUTPUT_FOLDER, page_filename)
 
-    with open(out, "wb") as f:
-        writer.write(f)
+        with open(page_path, "wb") as f:
+            writer.write(f)
 
-    return send_file(out, as_attachment=True)
+        page_paths.append(page_filename)
+
+    # ALSO CREATE ZIP
+    zip_name = f"split_{uuid.uuid4()}.zip"
+    zip_path = os.path.join(OUTPUT_FOLDER, zip_name)
+
+    with zipfile.ZipFile(zip_path, 'w') as zipf:
+        for p in page_paths:
+            zipf.write(os.path.join(OUTPUT_FOLDER, p), p)
+
+    return jsonify({
+        "pages": page_paths,
+        "zip": zip_name
+    })
+
+
+# ================= DOWNLOAD =================
+@app.route("/download/<filename>")
+def download_file(filename):
+    path = os.path.join(OUTPUT_FOLDER, filename)
+    return send_file(path, as_attachment=True)
 
 
 if __name__ == "__main__":
