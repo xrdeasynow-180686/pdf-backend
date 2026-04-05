@@ -40,7 +40,7 @@ def merge_pdfs():
     with open(output_path, "wb") as f:
         writer.write(f)
 
-    return send_file(output_path, as_attachment=True)
+    return jsonify({"file": os.path.basename(output_path)})
 
 
 # ================= SPLIT (FIXED) =================
@@ -79,7 +79,50 @@ def split_pdf():
         "pages": page_paths,
         "zip": zip_name
     })
+# ================= PDF TO WORD =================
+@app.route("/pdf-to-word", methods=["POST"])
+def pdf_to_word():
+    file = request.files["file"]
 
+    filename = f"{uuid.uuid4()}.docx"
+    output_path = os.path.join(OUTPUT_FOLDER, filename)
+
+    # simple dummy conversion (replace later with real AI)
+    with open(output_path, "w") as f:
+        f.write("Converted Word file (demo)")
+
+    return jsonify({"file": filename})
+
+
+# ================= IMAGE TO PDF =================
+@app.route("/image-to-pdf", methods=["POST"])
+def image_to_pdf():
+    file = request.files["file"]
+
+    filename = f"{uuid.uuid4()}.pdf"
+    path = os.path.join(OUTPUT_FOLDER, filename)
+
+    from PIL import Image
+
+    img = Image.open(file)
+    img.convert("RGB").save(path)
+
+    return jsonify({"file": filename})
+
+
+# ================= COMPRESS =================
+@app.route("/compress", methods=["POST"])
+def compress_pdf():
+    file = request.files["file"]
+
+    filename = f"{uuid.uuid4()}.pdf"
+    path = os.path.join(OUTPUT_FOLDER, filename)
+
+    # basic compression copy (can improve later)
+    with open(path, "wb") as f:
+        f.write(file.read())
+
+    return jsonify({"file": filename})
 
 # ================= DOWNLOAD =================
 @app.route("/download/<filename>")
