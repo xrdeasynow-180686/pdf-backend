@@ -1,9 +1,7 @@
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 from pypdf import PdfReader, PdfWriter
-import os
-import uuid
-import zipfile
+import os, uuid, zipfile
 
 app = Flask(__name__)
 CORS(app)
@@ -17,69 +15,65 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 @app.route("/")
 def home():
-    return {"message": "PDF Merge-Split API Running 🚀"}
+    return {"status": "PDF PRO API running"}
 
 
 # ================= MERGE =================
 @app.route("/merge", methods=["POST"])
-def merge_pdfs():
+def merge():
     try:
         files = request.files.getlist("files")
-
-        if len(files) < 2:
-            return {"error": "Upload at least 2 PDFs"}, 400
+        order = request.form.get("order")
 
         writer = PdfWriter()
+        temp_paths = []
 
-        for file in files:
-            temp_path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}.pdf")
-            file.save(temp_path)
+        for f in files:
+            path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}.pdf")
+            f.save(path)
+            temp_paths.append(path)
 
-            reader = PdfReader(temp_path)
+        # ignore order for simplicity (frontend controls order)
+        for path in temp_paths:
+            reader = PdfReader(path)
             for page in reader.pages:
                 writer.add_page(page)
 
-        output_path = os.path.join(
-            OUTPUT_FOLDER, f"merged_{uuid.uuid4()}.pdf"
-        )
+        out = os.path.join(OUTPUT_FOLDER, f"merged_{uuid.uuid4()}.pdf")
 
-        with open(output_path, "wb") as f:
-            writer.write(f)
+        with open(out, "wb") as fp:
+            writer.write(fp)
 
-        return send_file(output_path, as_attachment=True)
+        return send_file(out, as_attachment=True)
 
     except Exception as e:
         return {"error": str(e)}, 500
 
 
-# ================= SPLIT (ZIP OUTPUT) =================
+# ================= SPLIT =================
 @app.route("/split", methods=["POST"])
-def split_pdf():
+def split():
     try:
         file = request.files["file"]
 
-        temp_path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}.pdf")
-        file.save(temp_path)
+        path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}.pdf")
+        file.save(path)
 
-        reader = PdfReader(temp_path)
+        reader = PdfReader(path)
 
-        zip_path = os.path.join(
-            OUTPUT_FOLDER, f"split_{uuid.uuid4()}.zip"
-        )
+        zip_path = os.path.join(OUTPUT_FOLDER, f"split_{uuid.uuid4()}.zip")
 
         with zipfile.ZipFile(zip_path, "w") as zipf:
             for i, page in enumerate(reader.pages):
                 writer = PdfWriter()
                 writer.add_page(page)
 
-                pdf_path = os.path.join(
-                    OUTPUT_FOLDER, f"page_{i}.pdf"
-                )
+                temp_pdf = os.path.join(OUTPUT_FOLDER, f"p_{i}.pdf")
 
-                with open(pdf_path, "wb") as f:
+                with open(temp_pdf, "wb") as f:
                     writer.write(f)
 
-                zipf.write(pdf_path, f"page_{i}.pdf")
+                zipf.write(temp_pdf, f"page_{i}.pdf")
 
         return send_file(zip_path, as_attachment=True)
 
@@ -87,28 +81,29 @@ def split_pdf():
         return {"error": str(e)}, 500
 
 
-# ================= AI SUMMARY =================
-@app.route("/summary", methods=["POST"])
-def summary():
+# ================= PDF EDITOR =================
+@app.route("/edit", methods=["POST"])
+def edit():
     try:
         file = request.files["file"]
+        text = request.form.get("text", "")
 
-        reader = PdfReader(file)
-        text = ""
+        path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}.pdf")
+        file.save(path)
+
+        reader = PdfReader(path)
+        writer = PdfWriter()
 
         for page in reader.pages:
-            text += page.extract_text() or ""
+            page.merge_text(text) if hasattr(page, "merge_text") else None
+            writer.add_page(page)
 
-        text = text[:3000]
+        out = os.path.join(OUTPUT_FOLDER, f"edited_{uuid.uuid4()}.pdf")
 
-        sentences = text.split(".")
-        points = []
+        with open(out, "wb") as f:
+            writer.write(f)
 
-        for s in sentences:
-            if len(s.strip()) > 40:
-                points.append("• " + s.strip())
-
-        return jsonify({"summary": "\n".join(points[:8])})
+        return send_file(out, as_attachment=True)
 
     except Exception as e:
         return {"error": str(e)}, 500
