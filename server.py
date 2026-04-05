@@ -1,9 +1,8 @@
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
+from pypdf import PdfReader, PdfWriter
 import os
 import uuid
-
-from pypdf import PdfReader, PdfWriter
 
 app = Flask(__name__)
 CORS(app)
@@ -14,10 +13,13 @@ OUTPUT_FOLDER = "output"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
+
 @app.route("/")
 def home():
-    return {"message": "PDF Merge API Running"}
+    return {"message": "PDF API Running"}
 
+
+# ✅ MERGE PDF
 @app.route("/merge", methods=["POST"])
 def merge_pdfs():
     files = request.files.getlist("files")
@@ -28,12 +30,10 @@ def merge_pdfs():
     writer = PdfWriter()
 
     for file in files:
-        filename = str(uuid.uuid4()) + ".pdf"
-        path = os.path.join(UPLOAD_FOLDER, filename)
+        path = os.path.join(UPLOAD_FOLDER, str(uuid.uuid4()) + ".pdf")
         file.save(path)
 
         reader = PdfReader(path)
-
         for page in reader.pages:
             writer.add_page(page)
 
@@ -46,6 +46,33 @@ def merge_pdfs():
         writer.write(f)
 
     return send_file(output_file, as_attachment=True)
+
+
+# ✅ AI SUMMARY
+@app.route("/summary", methods=["POST"])
+def summary():
+    file = request.files["file"]
+
+    reader = PdfReader(file)
+    text = ""
+
+    for page in reader.pages:
+        text += page.extract_text() or ""
+
+    text = text[:3000]
+
+    sentences = text.split(".")
+    points = []
+
+    for s in sentences:
+        if len(s.strip()) > 40:
+            points.append("• " + s.strip())
+
+    result = "\n".join(points[:8])
+
+    return jsonify({
+        "summary": result
+    })
 
 
 if __name__ == "__main__":
